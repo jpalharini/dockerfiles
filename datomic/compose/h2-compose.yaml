@@ -1,0 +1,28 @@
+version: "3.9"
+volumes:
+  ddb_data:
+networks:
+  datomic:
+services:
+  datomic-ttor:
+    networks:
+      - datomic
+    image: "datomic-pro"
+    build:
+      dockerfile: ../datomic-pro.Dockerfile
+      args:
+        DATOMIC_VERSION: 1.0.7075
+    container_name: datomic-ttor
+    ports:
+      - "4334:4334"
+      - "4335:4335"
+      - "9999:9999"
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "localhost:9999/health"]
+      interval: 1m
+      timeout: 30s
+      retries: 2
+      start_period: 1m30s
+    volumes:
+      - ${PWD}/files/h2-transactor.properties:/opt/datomic-pro/transactor.properties
+    command: "./bin/transactor -Djava.net.preferIPv4Stack=true -Xms4g -Xmx4g -XX:+UseG1GC transactor.properties"

@@ -1,0 +1,48 @@
+version: "3.9"
+volumes:
+  ddb_data:
+networks:
+  datomic:
+services:
+  dynamodb-local:
+    user: root
+    networks:
+      - datomic
+    command: "-jar DynamoDBLocal.jar -sharedDb -dbPath /home/dynamodblocal/data -port 8001"
+    image: "amazon/dynamodb-local:latest"
+    container_name: dynamodb-local
+    ports:
+      - "8001:8001"
+    volumes:
+      - ddb_data:/home/dynamodblocal/data
+    working_dir: /home/dynamodblocal
+  datomic-ttor:
+    depends_on:
+      - dynamodb-local
+    networks:
+      - datomic
+    image: "datomic-pro"
+    build:
+      dockerfile: ../datomic-pro.Dockerfile
+      args:
+        DATOMIC_VERSION: 1.0.7075
+    container_name: datomic-ttor
+    ports:
+      - "4334:4334"
+      - "9999:9999"
+    environment:
+      AWS_ACCESS_KEY_ID: DUMMYKEY
+      AWS_SECRET_ACCESS_KEY: DUMMYSECRET
+      AWS_REGION: us-east-1
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "localhost:9999/health"]
+      interval: 1m
+      timeout: 30s
+      retries: 2
+      start_period: 1m30s
+    volumes:
+      - ${PWD}/files/ddb-local-transactor.properties:/opt/datomic-pro/transactor.properties
+    command: bash -c "
+      echo 'dynamodb-local localhost' >> /etc/hosts &&
+      ./bin/datomic ensure-transactor transactor.properties transactor.properties &&
+      ./bin/transactor -Djava.net.preferIPv4Stack=true -Xms4g -Xmx4g -XX:+UseG1GC transactor.properties"
